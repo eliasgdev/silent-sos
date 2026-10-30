@@ -12,6 +12,7 @@ import com.example.silentsos.service.TrackingService
 import com.example.silentsos.service.WhatsAppAutoSendService
 import com.example.silentsos.utils.AlertMessageBuilder
 import com.example.silentsos.utils.AppOpenTracker
+import com.example.silentsos.utils.EstadoSms
 import com.example.silentsos.utils.EmergencyCallManager
 import com.example.silentsos.utils.LocationHelper
 import com.example.silentsos.utils.PinHasher
@@ -82,6 +83,9 @@ class EmergencyRepository @Inject constructor(
 
     private val _estadoAlerta = MutableStateFlow<EstadoAlerta>(EstadoAlerta.Inactiva)
     val estadoAlerta: StateFlow<EstadoAlerta> = _estadoAlerta.asStateFlow()
+
+    /** Envío y entrega del último SMS a cada número (confirmados por el operador). */
+    val estadosSms: StateFlow<Map<String, EstadoSms>> get() = smsAlertManager.estados
 
     private val _seguimientoEnCurso = MutableStateFlow(false)
     val seguimientoEnCurso: StateFlow<Boolean> = _seguimientoEnCurso.asStateFlow()
@@ -338,6 +342,7 @@ class EmergencyRepository @Inject constructor(
     /** Devuelve cuántos SMS se entregaron al sistema para envío. */
     private fun enviarSmsATodos(contactos: List<ContactoEmergencia>, mensaje: String): Int {
         if (!_smsActivo.value) return 0
+        smsAlertManager.reiniciarEstados()
         return contactos.count { smsAlertManager.enviarAlerta(it.numero, mensaje) }
     }
 

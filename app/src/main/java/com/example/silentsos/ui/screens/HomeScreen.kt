@@ -48,6 +48,7 @@ fun HomeScreen(
     val estado by viewModel.estadoAlerta.collectAsState()
     val seguimiento by viewModel.seguimientoEnCurso.collectAsState()
     val intervalo by viewModel.intervaloSeguimientoMin.collectAsState()
+    val estadosSms by viewModel.estadosSms.collectAsState()
 
     Scaffold(
         topBar = {
@@ -95,6 +96,10 @@ fun HomeScreen(
             )
 
             EstadoCard(estado)
+
+            if (estadosSms.isNotEmpty()) {
+                EstadoSmsCard(contactos, estadosSms)
+            }
 
             if (seguimiento) {
                 Card(

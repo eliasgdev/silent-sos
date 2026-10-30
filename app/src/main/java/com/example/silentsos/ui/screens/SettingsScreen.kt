@@ -346,6 +346,10 @@ fun SettingsScreen(
             ) {
                 Text(if (enviandoPrueba) "Enviando prueba…" else "Enviar mensaje de prueba")
             }
+            val estadosSms by viewModel.estadosSms.collectAsState()
+            if (estadosSms.isNotEmpty()) {
+                EstadoSmsCard(viewModel.contactos.collectAsState().value, estadosSms)
+            }
             Text(
                 "La prueba envía el SMS y el WhatsApp con tu ubicación, sin llamar ni iniciar el seguimiento.",
                 style = MaterialTheme.typography.labelLarge

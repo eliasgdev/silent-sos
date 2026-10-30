@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.silentsos.data.repository.EmergencyRepository
 import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.utils.ResultadoWhatsApp
+import com.example.silentsos.utils.EstadoSms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,6 +24,7 @@ class SettingsViewModel @Inject constructor(
     val llamadaAlAbrir: StateFlow<Boolean> = repository.llamadaAlAbrir
     val dobleAperturaAutoLlamada: StateFlow<Boolean> = repository.dobleAperturaAutoLlamada
     val contactos: StateFlow<List<ContactoEmergencia>> = repository.contactos
+    val estadosSms: StateFlow<Map<String, EstadoSms>> = repository.estadosSms
     val smsActivo: StateFlow<Boolean> = repository.smsActivo
     val whatsAppActivo: StateFlow<Boolean> = repository.whatsAppActivo
     val seguimientoActivo: StateFlow<Boolean> = repository.seguimientoActivo

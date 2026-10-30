@@ -15,7 +15,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.example.silentsos.domain.model.ContactoEmergencia
+import com.example.silentsos.ui.theme.OkGreen
 import com.example.silentsos.ui.theme.SosRed
+import com.example.silentsos.utils.EstadoSms
 import com.example.silentsos.ui.theme.SosRedDark
 import kotlinx.coroutines.delay
 
@@ -146,4 +149,27 @@ fun AvisoSinContactos(llamadaIniciada: Boolean, onCerrar: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onCerrar) { Text("Entendido") } }
     )
+}
+
+/**
+ * Resultado del último SMS a cada contacto, según lo confirma el operador:
+ * así se sabe si el SMS de verdad llegó y, si no, por qué.
+ */
+@Composable
+fun EstadoSmsCard(contactos: List<ContactoEmergencia>, estados: Map<String, EstadoSms>) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("SMS", style = MaterialTheme.typography.titleLarge)
+            estados.forEach { (numero, estado) ->
+                val nombre = contactos.firstOrNull { it.numero == numero }?.etiqueta ?: numero
+                val (color, texto) = when (estado) {
+                    EstadoSms.Enviando -> MaterialTheme.colorScheme.onSurfaceVariant to "enviando…"
+                    EstadoSms.Enviado -> MaterialTheme.colorScheme.onSurfaceVariant to "enviado, esperando confirmación de entrega"
+                    EstadoSms.Entregado -> OkGreen to "✓ entregado"
+                    is EstadoSms.Fallido -> SosRed to "✗ no enviado: ${estado.motivo}"
+                }
+                Text("$nombre: $texto", color = color, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
 }

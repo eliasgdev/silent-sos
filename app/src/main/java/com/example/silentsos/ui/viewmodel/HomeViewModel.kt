@@ -5,6 +5,7 @@ import com.example.silentsos.data.repository.EmergencyRepository
 import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.domain.model.EstadoAlerta
 import com.example.silentsos.domain.usecase.LlamarEmergenciaUseCase
+import com.example.silentsos.utils.EstadoSms
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.StateFlow
 import javax.inject.Inject
@@ -20,6 +21,7 @@ class HomeViewModel @Inject constructor(
     val estadoAlerta: StateFlow<EstadoAlerta> = repository.estadoAlerta
     val seguimientoEnCurso: StateFlow<Boolean> = repository.seguimientoEnCurso
     val intervaloSeguimientoMin: StateFlow<Int> = repository.intervaloSeguimientoMin
+    val estadosSms: StateFlow<Map<String, EstadoSms>> = repository.estadosSms
 
     fun activarSos() {
         llamarEmergencia()
