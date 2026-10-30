@@ -100,7 +100,7 @@ APK generada: `app/build/outputs/apk/debug/app-debug.apk`
 | SMS: confirmación de entrega del operador (estado "✓ entregado") | OK |
 | SMS rechazado por el operador → la app lo muestra con el código | OK |
 | WhatsApp con envío automático: texto + ubicación en tiempo real (15 min en la prueba) a 2 contactos seguidos | OK |
-| Pantalla de "Estoy a salvo" → seguimiento detenido + SMS final | OK |
+| "Estoy a salvo" → seguimiento detenido + SMS final | OK |
 | Aviso en la pantalla principal cuando el envío automático está apagado | OK |
 
 Los SMS se envían sin tildes ni símbolos especiales a propósito: así caben 160 caracteres por SMS (en vez de 70) y se evita un error de Android 16+ al dividir mensajes Unicode.
