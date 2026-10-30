@@ -163,6 +163,14 @@ private fun EstadoCard(estado: EstadoAlerta) {
     val (color, titulo, detalles) = when (estado) {
         EstadoAlerta.Inactiva -> Triple(OkGreen, "Sistema listo", emptyList())
         EstadoAlerta.Enviando -> Triple(SosRed, "Enviando alerta…", listOf("Obteniendo tu ubicación"))
+        is EstadoAlerta.SinContactos -> Triple(
+            SosRed,
+            "La alerta no se envió",
+            listOfNotNull(
+                "No tienes contactos de emergencia",
+                if (estado.llamadaIniciada) "Llamada de emergencia iniciada" else null
+            )
+        )
         is EstadoAlerta.Enviada -> {
             val hora = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date(estado.hora))
             Triple(

@@ -2,6 +2,7 @@ package com.example.silentsos.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.example.silentsos.data.repository.EmergencyRepository
+import com.example.silentsos.domain.model.EstadoAlerta
 import com.example.silentsos.domain.model.OrigenAlerta
 import com.example.silentsos.domain.usecase.LlamarEmergenciaUseCase
 import com.example.silentsos.domain.usecase.ProcesarAperturaDeAppUseCase
@@ -19,6 +20,10 @@ class MainViewModel @Inject constructor(
 ) : ViewModel() {
 
     val haVistoBienvenida: Boolean get() = repository.haVistoBienvenida()
+
+    val estadoAlerta: StateFlow<EstadoAlerta> = repository.estadoAlerta
+
+    fun descartarAvisoSinContactos() = repository.descartarAvisoSinContactos()
 
     /** true mientras se muestra la cuenta regresiva de un acceso rápido (atajo o ajuste rápido). */
     private val _sosRapidoPendiente = MutableStateFlow(false)

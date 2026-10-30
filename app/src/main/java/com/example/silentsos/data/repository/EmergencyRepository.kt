@@ -9,6 +9,7 @@ import com.example.silentsos.domain.model.EstadoAlerta
 import com.example.silentsos.domain.model.OrigenAlerta
 import com.example.silentsos.domain.model.RegistroAlerta
 import com.example.silentsos.service.TrackingService
+import com.example.silentsos.service.WhatsAppAutoSendService
 import com.example.silentsos.utils.AlertMessageBuilder
 import com.example.silentsos.utils.AppOpenTracker
 import com.example.silentsos.utils.EmergencyCallManager
@@ -231,12 +232,24 @@ class EmergencyRepository @Inject constructor(
      *    servicio de accesibilidad está activo, y en ese caso a todos los contactos).
      * 5. Llama al número de emergencia, dando unos segundos a WhatsApp antes.
      */
+    /** La usuaria ya leyó el aviso de "sin contactos". */
+    fun descartarAvisoSinContactos() {
+        if (_estadoAlerta.value is EstadoAlerta.SinContactos) _estadoAlerta.value = EstadoAlerta.Inactiva
+    }
+
     fun activarEmergencia(origen: OrigenAlerta) {
         if (_estadoAlerta.value == EstadoAlerta.Enviando) return
         _estadoAlerta.value = EstadoAlerta.Enviando
         appOpenTracker.iniciarEnfriamiento()
 
         scope.launch {
+            if (_contactos.value.isEmpty()) {
+                // Sin contactos no hay a quién avisar: solo se hace la llamada (si está
+                // activa) y se informa a la usuaria para que no crea que la alerta salió.
+                val llamada = _llamarEmergencia.value && emergencyCallManager.llamar(_numeroEmergencia.value)
+                _estadoAlerta.value = EstadoAlerta.SinContactos(llamada)
+                return@launch
+            }
             val ubicacion = locationHelper.obtenerUbicacionActual()
             val contactos = _contactos.value
             val nombre = _nombreUsuario.value
@@ -250,7 +263,11 @@ class EmergencyRepository @Inject constructor(
             val seguimiento = seguir && runCatching { TrackingService.iniciar(context) }.isSuccess
 
             val (whatsApp, whatsAppEnviados) =
-                enviarWhatsAppATodos(contactos, mensajes.alerta(nombre, ubicacion, intervalo, paraWhatsApp = true))
+                enviarWhatsAppATodos(
+                    contactos,
+                    mensajes.alerta(nombre, ubicacion, intervalo, paraWhatsApp = true),
+                    WhatsAppAutoSendService.DuracionUbicacion.HORAS_8
+                )
 
             var llamada = false
             if (_llamarEmergencia.value) {
@@ -298,7 +315,11 @@ class EmergencyRepository @Inject constructor(
         val nombre = _nombreUsuario.value
         val sms = enviarSmsATodos(contactos, mensajes.prueba(nombre, ubicacion, paraWhatsApp = false))
         val (whatsApp, whatsAppEnviados) =
-            enviarWhatsAppATodos(contactos, mensajes.prueba(nombre, ubicacion, paraWhatsApp = true))
+            enviarWhatsAppATodos(
+                contactos,
+                mensajes.prueba(nombre, ubicacion, paraWhatsApp = true),
+                WhatsAppAutoSendService.DuracionUbicacion.MIN_15
+            )
         registrarEnHistorial(
             RegistroAlerta(
                 hora = System.currentTimeMillis(),
@@ -331,26 +352,27 @@ class EmergencyRepository @Inject constructor(
     private suspend fun enviarWhatsAppATodos(
         contactos: List<ContactoEmergencia>,
         mensaje: String,
-        soloAutomatico: Boolean = false
+        ubicacionEnVivo: WhatsAppAutoSendService.DuracionUbicacion?
     ): Pair<ResultadoWhatsApp, Int> {
         if (!_whatsAppActivo.value) return ResultadoWhatsApp.DESACTIVADO to 0
         if (contactos.isEmpty()) return ResultadoWhatsApp.SIN_NUMERO to 0
 
         val automatico = whatsAppManager.autoEnvioDisponible()
-        if (soloAutomatico && !automatico) return ResultadoWhatsApp.DESACTIVADO to 0
         val destinatarios = if (automatico) contactos else contactos.take(1)
 
         var primero: ResultadoWhatsApp? = null
         var enviados = 0
         destinatarios.forEachIndexed { i, contacto ->
-            if (i > 0) delay(ESPERA_ENTRE_WHATSAPP_MS)
+            if (i > 0) WhatsAppAutoSendService.esperarFin()
             appOpenTracker.omitirSiguienteApertura()
-            val resultado = whatsAppManager.enviar(contacto.numero, mensaje)
+            val resultado = whatsAppManager.enviar(contacto.numero, mensaje, ubicacionEnVivo)
             if (primero == null) primero = resultado
             if (resultado == ResultadoWhatsApp.ENVIO_AUTOMATICO || resultado == ResultadoWhatsApp.ABIERTO_PARA_ENVIAR) {
                 enviados++
             }
         }
+        // Que la llamada no interrumpa al servicio mientras completa el último chat
+        if (automatico) WhatsAppAutoSendService.esperarFin()
         return (primero ?: ResultadoWhatsApp.ERROR) to enviados
     }
 
@@ -368,17 +390,14 @@ class EmergencyRepository @Inject constructor(
         _seguimientoEnCurso.value = false
     }
 
-    /**
-     * Envía la ubicación actual. Por WhatsApp solo si el envío es automático:
-     * abrir el chat cada pocos minutos esperando un toque no tendría sentido.
-     */
+    /** Envía la ubicación actual por SMS (ver la nota de WhatsApp más abajo). */
     suspend fun enviarActualizacionDeUbicacion(numeroEnvio: Int): Location? {
         val ubicacion = locationHelper.obtenerUbicacionActual()
         val contactos = _contactos.value
         enviarSmsATodos(contactos, mensajes.actualizacion(numeroEnvio, ubicacion, paraWhatsApp = false))
-        enviarWhatsAppATodos(
-            contactos, mensajes.actualizacion(numeroEnvio, ubicacion, paraWhatsApp = true), soloAutomatico = true
-        )
+        // Por WhatsApp no hace falta: el contacto ya recibió la ubicación en tiempo
+        // real de WhatsApp con la alerta, y abrir WhatsApp cada pocos minutos
+        // interrumpiría a la usuaria.
         return ubicacion
     }
 
@@ -389,11 +408,9 @@ class EmergencyRepository @Inject constructor(
     }
 
     companion object {
-        /** Tiempo para que el servicio de accesibilidad pulse "Enviar" antes de la llamada. */
-        private const val ESPERA_LLAMADA_AUTO_MS = 6_000L
+        /** Margen tras volver de WhatsApp (el servicio ya terminó) antes de la llamada. */
+        private const val ESPERA_LLAMADA_AUTO_MS = 2_000L
         /** Tiempo para que el usuario toque "Enviar" en WhatsApp antes de la llamada. */
         private const val ESPERA_LLAMADA_MANUAL_MS = 15_000L
-        /** Entre un chat de WhatsApp y el siguiente (abrir, enviar y volver al inicio). */
-        private const val ESPERA_ENTRE_WHATSAPP_MS = 7_000L
     }
 }

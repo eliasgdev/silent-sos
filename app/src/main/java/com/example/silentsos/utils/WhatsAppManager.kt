@@ -46,7 +46,15 @@ class WhatsAppManager @Inject constructor(
 
     fun autoEnvioDisponible(): Boolean = WhatsAppAutoSendService.estaHabilitado(context)
 
-    fun enviar(numero: String, mensaje: String): ResultadoWhatsApp {
+    /**
+     * Abre el chat con [mensaje] escrito. Con envío automático, el servicio lo envía
+     * y, si se indica [ubicacionEnVivo], comparte además la ubicación en tiempo real.
+     */
+    fun enviar(
+        numero: String,
+        mensaje: String,
+        ubicacionEnVivo: WhatsAppAutoSendService.DuracionUbicacion? = null
+    ): ResultadoWhatsApp {
         val paquete = paqueteInstalado() ?: return ResultadoWhatsApp.NO_INSTALADO
         // WhatsApp espera el número internacional solo con dígitos (ej. 573001234567)
         val telefono = numero.filter { it.isDigit() }
@@ -58,7 +66,7 @@ class WhatsAppManager @Inject constructor(
             .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
 
         val automatico = autoEnvioDisponible()
-        if (automatico) WhatsAppAutoSendService.programarEnvio()
+        if (automatico) WhatsAppAutoSendService.programarEnvio(ubicacionEnVivo)
 
         return try {
             context.startActivity(intent)

@@ -128,3 +128,22 @@ fun CuentaRegresivaSos(onConfirmar: () -> Unit, onCancelar: () -> Unit) {
         }
     }
 }
+
+/** La alerta se pidió pero no había contactos: se explica en vez de no hacer nada. */
+@Composable
+fun AvisoSinContactos(llamadaIniciada: Boolean, onCerrar: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onCerrar,
+        title = { Text("La alerta no se envió") },
+        text = {
+            Text(
+                buildString {
+                    append("No tienes ningún contacto de emergencia, así que nadie recibió tu ubicación.")
+                    if (llamadaIniciada) append(" Sí se inició la llamada de emergencia.")
+                    append("\n\nIngresa a la app y agrega un contacto en Configuración → Contactos de emergencia.")
+                }
+            )
+        },
+        confirmButton = { TextButton(onClick = onCerrar) { Text("Entendido") } }
+    )
+}

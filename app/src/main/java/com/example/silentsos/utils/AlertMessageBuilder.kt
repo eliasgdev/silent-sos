@@ -36,7 +36,7 @@ class AlertMessageBuilder @Inject constructor(
             appendLine()
             if (intervaloSeguimientoMin != null) {
                 appendLine()
-                append("Seguimiento en tiempo real activo: te enviaré la ubicación cada $intervaloSeguimientoMin min.")
+                append("Te comparto mi ubicación en tiempo real aquí en WhatsApp y te enviaré SMS con mi posición cada $intervaloSeguimientoMin min.")
             }
         } else {
             appendLine("ALERTA SilentSOS: $quien activo una alerta de emergencia y puede necesitar ayuda.")

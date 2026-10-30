@@ -15,8 +15,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
+import com.example.silentsos.domain.model.EstadoAlerta
 import com.example.silentsos.navigation.Rutas
 import com.example.silentsos.navigation.SilentSOSNavGraph
+import com.example.silentsos.ui.screens.AvisoSinContactos
 import com.example.silentsos.ui.screens.CuentaRegresivaSos
 import com.example.silentsos.ui.screens.permisosRequeridos
 import com.example.silentsos.ui.theme.SilentSOSTheme
@@ -68,6 +70,15 @@ class MainActivity : ComponentActivity() {
                         CuentaRegresivaSos(
                             onConfirmar = viewModel::confirmarSosRapido,
                             onCancelar = viewModel::cancelarSosRapido
+                        )
+                    }
+
+                    // Visible en cualquier pantalla (también en el ingreso o tras un acceso rápido)
+                    val estado by viewModel.estadoAlerta.collectAsState()
+                    (estado as? EstadoAlerta.SinContactos)?.let {
+                        AvisoSinContactos(
+                            llamadaIniciada = it.llamadaIniciada,
+                            onCerrar = viewModel::descartarAvisoSinContactos
                         )
                     }
                 }

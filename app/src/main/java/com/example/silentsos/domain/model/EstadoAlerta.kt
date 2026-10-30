@@ -9,6 +9,9 @@ sealed interface EstadoAlerta {
 
     data object Enviando : EstadoAlerta
 
+    /** Se pidió la alerta pero no hay ningún contacto a quien enviarla. */
+    data class SinContactos(val llamadaIniciada: Boolean) : EstadoAlerta
+
     data class Enviada(
         val hora: Long,
         val ubicacionObtenida: Boolean,
