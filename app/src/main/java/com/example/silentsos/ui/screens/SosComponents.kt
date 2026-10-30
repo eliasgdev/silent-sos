@@ -166,7 +166,7 @@ fun EstadoSmsCard(contactos: List<ContactoEmergencia>, estados: Map<String, Esta
                     EstadoSms.Enviando -> MaterialTheme.colorScheme.onSurfaceVariant to "enviando…"
                     EstadoSms.Enviado -> MaterialTheme.colorScheme.onSurfaceVariant to "enviado, esperando confirmación de entrega"
                     EstadoSms.Entregado -> OkGreen to "✓ entregado"
-                    is EstadoSms.Fallido -> SosRed to "✗ no enviado: ${estado.motivo}"
+                    is EstadoSms.Fallido -> SosRed to "✗ ${estado.motivo}"
                 }
                 Text("$nombre: $texto", color = color, style = MaterialTheme.typography.bodyLarge)
             }

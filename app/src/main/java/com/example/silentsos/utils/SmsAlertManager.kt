@@ -102,7 +102,7 @@ class SmsAlertManager @Inject constructor(
 
         if (!tienePermiso()) {
             Log.w(TAG, "Permiso SEND_SMS no concedido")
-            marcar(numero, EstadoSms.Fallido("falta el permiso de SMS"))
+            marcar(numero, EstadoSms.Fallido("no se envió: falta el permiso de SMS"))
             return false
         }
 
@@ -114,7 +114,7 @@ class SmsAlertManager @Inject constructor(
                 SmsManager.getDefault()
             }
             if (smsManager == null) {
-                marcar(numero, EstadoSms.Fallido("el teléfono no puede enviar SMS"))
+                marcar(numero, EstadoSms.Fallido("no se envió: el teléfono no puede enviar SMS"))
                 return false
             }
 
@@ -137,7 +137,7 @@ class SmsAlertManager @Inject constructor(
             true
         } catch (e: Exception) {
             Log.e(TAG, "Error enviando SMS de alerta", e)
-            marcar(numero, EstadoSms.Fallido("error del sistema al enviar"))
+            marcar(numero, EstadoSms.Fallido("no se envió: error del sistema"))
             false
         }
     }
@@ -158,10 +158,10 @@ class SmsAlertManager @Inject constructor(
             Log.w(TAG, "SMS a ${envio.numero} falló: $motivo ($resultado)")
             synchronized(envios) { envios.remove(id) }
             if (!envio.reintento) {
-                marcar(envio.numero, EstadoSms.Fallido("$motivo, reintentando…"))
+                marcar(envio.numero, EstadoSms.Fallido("no se envió: $motivo, reintentando…"))
                 handler.postDelayed({ enviar(envio.numero, envio.texto, reintento = true) }, ESPERA_REINTENTO_MS)
             } else {
-                marcar(envio.numero, EstadoSms.Fallido(motivo))
+                marcar(envio.numero, EstadoSms.Fallido("no se envió: $motivo"))
             }
             return
         }
@@ -178,7 +178,7 @@ class SmsAlertManager @Inject constructor(
         // GSM TP-Status: 0x00–0x1F entregado, 0x20–0x3F aún intentando, 0x40+ fallo definitivo
         when {
             estado == null || estado < 0x20 -> marcar(envio.numero, EstadoSms.Entregado)
-            estado >= 0x40 -> marcar(envio.numero, EstadoSms.Fallido("el operador no pudo entregarlo"))
+            estado >= 0x40 -> marcar(envio.numero, EstadoSms.Fallido("salió del teléfono pero el operador no lo entregó (código $estado)"))
             else -> return // el operador sigue intentando: llegará otro informe
         }
         synchronized(envios) { envios.values.remove(envio) }

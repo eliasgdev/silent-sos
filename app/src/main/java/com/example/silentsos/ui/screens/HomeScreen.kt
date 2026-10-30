@@ -13,15 +13,22 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.domain.model.EstadoAlerta
 import com.example.silentsos.ui.theme.OkGreen
@@ -49,6 +56,18 @@ fun HomeScreen(
     val seguimiento by viewModel.seguimientoEnCurso.collectAsState()
     val intervalo by viewModel.intervaloSeguimientoMin.collectAsState()
     val estadosSms by viewModel.estadosSms.collectAsState()
+
+    // El envío automático se activa fuera de la app (Accesibilidad): se relee al volver
+    var refresco by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, evento ->
+            if (evento == Lifecycle.Event.ON_RESUME) refresco++
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val faltaAutoEnvio = remember(refresco) { viewModel.faltaAutoEnvioWhatsApp() }
 
     Scaffold(
         topBar = {
@@ -86,6 +105,13 @@ fun HomeScreen(
                 )
             } else {
                 ContactosCard(contactos)
+                if (faltaAutoEnvio) {
+                    AvisoCard(
+                        texto = "El envío automático de WhatsApp está apagado: el mensaje y la ubicación no saldrán solos.",
+                        accion = "Activarlo",
+                        onAccion = onConfiguracionClick
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(8.dp))

@@ -1,4 +1,4 @@
-# SilentSOS v1.1.1
+# SilentSOS v1.2
 
 App Android (Kotlin + Jetpack Compose + Hilt) para pedir ayuda de forma discreta. Al activarse:
 
@@ -20,6 +20,8 @@ App Android (Kotlin + Jetpack Compose + Hilt) para pedir ayuda de forma discreta
 - **Hasta 3 contactos**: se escriben a mano o se eligen de la agenda (el selector del sistema no requiere el permiso de contactos). No se aceptan números repetidos.
 - **Historial** de alertas y pruebas: origen, hora, SMS y WhatsApp enviados, si hubo llamada y un enlace para ver la ubicación en el mapa. Se guardan las últimas 50.
 - **Cambiar PIN** desde Configuración → Seguridad.
+- **Confirmación de SMS**: la app pide al operador confirmación de envío y de entrega de cada SMS y muestra por contacto "✓ entregado", "enviado, esperando confirmación" o el motivo del fallo (sin señal, modo avión, rechazado por la red…). Si el envío falla, lo reintenta una vez a los 15 s.
+- **Aviso de envío automático apagado** en la pantalla principal, con acceso directo para activarlo.
 - **Aviso si no hay contactos**: si se pide una alerta sin contactos guardados (por ejemplo desde el acceso rápido antes de configurar la app), se muestra "La alerta no se envió" en lugar de no hacer nada.
 
 ## Arquitectura
@@ -95,7 +97,11 @@ APK generada: `app/build/outputs/apk/debug/app-debug.apk`
 | SOS → SMS de alerta con ubicación (±12 m), hora y batería | OK |
 | Seguimiento: SMS "actualización #1" al minuto | OK |
 | WhatsApp sin envío automático: abre el chat con la alerta escrita y vista previa del mapa | OK |
-| WhatsApp con envío automático + ubicación en tiempo real | Pendiente: requiere activar el servicio de accesibilidad |
+| SMS: confirmación de entrega del operador (estado "✓ entregado") | OK |
+| SMS rechazado por el operador → la app lo muestra con el código | OK |
+| WhatsApp con envío automático: texto + ubicación en tiempo real (15 min en la prueba) a 2 contactos seguidos | OK |
+| Pantalla de "Estoy a salvo" → seguimiento detenido + SMS final | OK |
+| Aviso en la pantalla principal cuando el envío automático está apagado | OK |
 
 Los SMS se envían sin tildes ni símbolos especiales a propósito: así caben 160 caracteres por SMS (en vez de 70) y se evita un error de Android 16+ al dividir mensajes Unicode.
 
@@ -103,4 +109,5 @@ Los SMS se envían sin tildes ni símbolos especiales a propósito: así caben 1
 - Android no deja que una app que no es el marcador predeterminado llame directamente a números de emergencia oficiales (123, 911). En ese caso se abre el marcador con el número listo para confirmar.
 - El envío automático por WhatsApp depende de los ids de la interfaz de WhatsApp (`send`, `input_attach_button`, `pickfiletype_location_holder`, `live_location_btn`, `duration_480_min`). Si WhatsApp cambia su interfaz, puede ser necesario actualizarlos.
 - La ubicación en tiempo real de WhatsApp sigue activa las 8 h aunque se pulse "Estoy a salvo"; se detiene desde el chat de WhatsApp.
-- El SMS tiene el costo normal del plan del usuario.
+- El SMS tiene el costo normal del plan del usuario. Si el operador no lo entrega (saldo, filtros antispam, envío al mismo número), la app lo muestra pero no puede evitarlo.
+- Si se **fuerza la detención** de SilentSOS (Ajustes → Apps → Forzar detención), Android apaga su servicio de accesibilidad y hay que volver a activarlo. La pantalla principal avisa cuando pasa.

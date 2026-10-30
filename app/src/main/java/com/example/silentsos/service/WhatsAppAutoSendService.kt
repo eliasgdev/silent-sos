@@ -32,7 +32,7 @@ class WhatsAppAutoSendService : AccessibilityService() {
     /** WhatsApp no siempre emite eventos tras cada cambio: se reintenta cada poco. */
     private val reintento = object : Runnable {
         override fun run() {
-            if (!hayEnvioPendiente()) return
+            if (!hayEnvioPendiente() || paso == Paso.FIN) return
             avanzar()
             handler.postDelayed(this, INTERVALO_REINTENTO_MS)
         }
@@ -96,9 +96,13 @@ class WhatsAppAutoSendService : AccessibilityService() {
 
     private fun terminar() {
         paso = Paso.FIN
-        cancelarEnvio()
         handler.removeCallbacks(reintento)
-        handler.postDelayed({ performGlobalAction(GLOBAL_ACTION_HOME) }, 800)
+        // El envío se da por terminado solo después de volver al inicio: si no, el
+        // siguiente chat se abriría antes y este HOME lo cerraría a medias.
+        handler.postDelayed({
+            performGlobalAction(GLOBAL_ACTION_HOME)
+            handler.postDelayed({ cancelarEnvio() }, 700)
+        }, 800)
     }
 
     private fun clic(nodo: AccessibilityNodeInfo): Boolean {

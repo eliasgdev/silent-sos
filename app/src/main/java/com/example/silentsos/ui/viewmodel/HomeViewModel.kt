@@ -27,6 +27,10 @@ class HomeViewModel @Inject constructor(
         llamarEmergencia()
     }
 
+    /** WhatsApp activado como canal e instalado, pero sin el servicio que envía solo. */
+    fun faltaAutoEnvioWhatsApp(): Boolean =
+        repository.whatsAppActivo.value && repository.whatsAppInstalado() && !repository.autoEnvioWhatsAppDisponible()
+
     fun detenerSeguimiento() {
         repository.detenerSeguimiento()
     }
