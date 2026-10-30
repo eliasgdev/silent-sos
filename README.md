@@ -1,0 +1,66 @@
+# SilentSOS v1.0
+
+App Android (Kotlin + Jetpack Compose + Hilt) para pedir ayuda de forma discreta. Al activarse:
+
+1. Obtiene la ubicación GPS (espera 8 s como máximo).
+2. Envía un **SMS** silencioso al contacto de emergencia con el enlace de Google Maps, la precisión, la hora y la batería.
+3. Abre **WhatsApp** con el mismo mensaje ya escrito. Si el *envío automático* está activo, se envía sin tocar la pantalla.
+4. Inicia el **seguimiento en tiempo real**: un servicio en primer plano envía la ubicación cada 1, 2, 5 o 10 min hasta que se pulsa "Estoy a salvo".
+5. **Llama** al número de emergencia configurado (123 por defecto).
+
+## Formas de activar la alerta
+- Botón **SOS** en la pantalla principal, con 5 s de cuenta regresiva para poder cancelar.
+- Botón SOS en la pantalla de ingreso, sin escribir el PIN (opcional).
+- **Doble apertura**: abrir la app 2 veces en menos de 10 s envía la alerta sin cuenta regresiva (opcional). Después de una alerta hay 2 min de espera antes de que pueda volver a dispararse.
+
+## Arquitectura
+```
+ui/ (screens + viewmodel)  →  domain/usecase  →  data/repository/EmergencyRepository
+                                                   ├─ utils/LocationHelper        (Fused Location)
+                                                   ├─ utils/SmsAlertManager       (SmsManager)
+                                                   ├─ utils/WhatsAppManager       (intent api.whatsapp.com/send)
+                                                   ├─ utils/EmergencyCallManager  (TelecomManager.placeCall)
+                                                   ├─ utils/AlertMessageBuilder   (textos de los mensajes)
+                                                   └─ utils/AppOpenTracker        (doble apertura)
+service/TrackingService          servicio en primer plano (tipo location) para el seguimiento
+service/WhatsAppAutoSendService  servicio de accesibilidad que pulsa "Enviar" en WhatsApp
+```
+Los datos se guardan solo en el teléfono (SharedPreferences). El PIN se guarda como hash SHA-256 con salt.
+
+## Cómo funciona WhatsApp
+WhatsApp no tiene una API pública para que una app envíe mensajes desde la cuenta personal del usuario. SilentSOS abre el chat del contacto con el mensaje escrito y luego:
+- **Con envío automático** (servicio de accesibilidad activo): el servicio pulsa "Enviar" y vuelve a la pantalla de inicio. Solo actúa durante los 20 s siguientes a que SilentSOS prepara una alerta. Las actualizaciones del seguimiento también se envían por WhatsApp.
+- **Sin envío automático**: el usuario tiene que tocar "Enviar". Las actualizaciones del seguimiento solo se envían por SMS.
+
+Para activar el envío automático: Configuración → *Activar envío automático* → Apps instaladas → SilentSOS → activar.
+En Android 13 o superior, con la APK instalada fuera de la Play Store, Android lo bloquea como "Ajuste restringido". Para desbloquearlo: Ajustes → Apps → SilentSOS → ⋮ → *Permitir ajustes restringidos*, y luego activarlo.
+
+## Compilar e instalar
+```bash
+./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+APK generada: `app/build/outputs/apk/debug/app-debug.apk`
+
+## Probar sin generar una emergencia real
+1. Configura como contacto un número tuyo o de un compañero, con el indicativo (ej. `+57 300…`).
+2. En "Llamada", cambia el número 123 por un número de prueba o desactiva la llamada.
+3. Usa **Enviar mensaje de prueba**: envía el SMS y el WhatsApp con la ubicación, sin llamar ni iniciar el seguimiento.
+
+## Pruebas realizadas (emulador Android 17, Pixel 8)
+| Caso | Resultado |
+|---|---|
+| Bienvenida → crear cuenta (validación de nombre, PIN y confirmación) → inicio | OK |
+| Mensaje de prueba: SMS con enlace de Maps y precisión | OK |
+| SOS con cuenta regresiva → SMS de alerta + seguimiento + llamada | OK |
+| Seguimiento: SMS "actualización #1" con la nueva posición al minuto | OK |
+| "Estoy a salvo" → servicio detenido + SMS final con la última ubicación | OK |
+| Doble apertura (2 aperturas en < 10 s) → alerta silenciosa | OK |
+| WhatsApp | No probado (el emulador no tiene WhatsApp): probar en un teléfono real |
+
+Los SMS se envían sin tildes ni símbolos especiales a propósito: así caben 160 caracteres por SMS (en vez de 70) y se evita un error de Android 16+ al dividir mensajes Unicode.
+
+## Limitaciones conocidas
+- Android no deja que una app que no es el marcador predeterminado llame directamente a números de emergencia oficiales (123, 911). En ese caso se abre el marcador con el número listo para confirmar.
+- El envío automático por WhatsApp depende del botón "Enviar" de WhatsApp (id `com.whatsapp:id/send`, o la descripción "Enviar"/"Send" como respaldo). Si WhatsApp cambia su interfaz, puede ser necesario actualizar ese id.
+- El SMS tiene el costo normal del plan del usuario.
