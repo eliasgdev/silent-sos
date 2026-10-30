@@ -2,6 +2,8 @@ package com.example.silentsos.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.example.silentsos.domain.model.ContactoEmergencia
+import com.example.silentsos.domain.model.RegistroAlerta
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -35,17 +37,30 @@ class PreferencesManager @Inject constructor(
         prefs.edit().putBoolean(KEY_DOBLE_APERTURA, activo).apply()
     }
 
-    /** Número del contacto de emergencia (SMS y WhatsApp). Vacío si no hay. */
-    fun getNumeroSms(): String = prefs.getString(KEY_NUMERO_SMS, "") ?: ""
-
-    fun setNumeroSms(numero: String) {
-        prefs.edit().putString(KEY_NUMERO_SMS, numero).apply()
+    /**
+     * Contactos de emergencia (máx. 3), guardados como JSON.
+     * Si solo existe el contacto único de la versión 1.0, se migra a la lista.
+     */
+    fun getContactos(): List<ContactoEmergencia> {
+        prefs.getString(KEY_CONTACTOS, null)?.let { return ContactoEmergencia.listaDesdeJson(it) }
+        val numeroAntiguo = prefs.getString(KEY_NUMERO_SMS, "") ?: ""
+        if (numeroAntiguo.isBlank()) return emptyList()
+        return listOf(ContactoEmergencia(prefs.getString(KEY_NOMBRE_CONTACTO, "") ?: "", numeroAntiguo))
     }
 
-    fun getNombreContacto(): String = prefs.getString(KEY_NOMBRE_CONTACTO, "") ?: ""
+    fun setContactos(contactos: List<ContactoEmergencia>) {
+        prefs.edit()
+            .putString(KEY_CONTACTOS, ContactoEmergencia.listaAJson(contactos))
+            .remove(KEY_NUMERO_SMS)
+            .remove(KEY_NOMBRE_CONTACTO)
+            .apply()
+    }
 
-    fun setNombreContacto(nombre: String) {
-        prefs.edit().putString(KEY_NOMBRE_CONTACTO, nombre).apply()
+    fun getHistorial(): List<RegistroAlerta> =
+        RegistroAlerta.listaDesdeJson(prefs.getString(KEY_HISTORIAL, "[]") ?: "[]")
+
+    fun setHistorial(registros: List<RegistroAlerta>) {
+        prefs.edit().putString(KEY_HISTORIAL, RegistroAlerta.listaAJson(registros)).apply()
     }
 
     fun isSmsActivo(): Boolean = prefs.getBoolean(KEY_SMS_ACTIVO, true)
@@ -108,6 +123,8 @@ class PreferencesManager @Inject constructor(
         private const val KEY_DOBLE_APERTURA = "opcion_doble_apertura"
         private const val KEY_NUMERO_SMS = "numero_sms_alerta"
         private const val KEY_NOMBRE_CONTACTO = "nombre_contacto"
+        private const val KEY_CONTACTOS = "contactos_emergencia"
+        private const val KEY_HISTORIAL = "historial_alertas"
         private const val KEY_SMS_ACTIVO = "canal_sms_activo"
         private const val KEY_WHATSAPP_ACTIVO = "canal_whatsapp_activo"
         private const val KEY_SEGUIMIENTO_ACTIVO = "seguimiento_activo"

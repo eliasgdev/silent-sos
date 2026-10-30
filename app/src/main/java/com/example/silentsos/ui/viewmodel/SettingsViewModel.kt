@@ -3,6 +3,7 @@ package com.example.silentsos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.silentsos.data.repository.EmergencyRepository
+import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.utils.ResultadoWhatsApp
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,8 +22,7 @@ class SettingsViewModel @Inject constructor(
 
     val llamadaAlAbrir: StateFlow<Boolean> = repository.llamadaAlAbrir
     val dobleAperturaAutoLlamada: StateFlow<Boolean> = repository.dobleAperturaAutoLlamada
-    val numeroSms: StateFlow<String> = repository.numeroSms
-    val nombreContacto: StateFlow<String> = repository.nombreContacto
+    val contactos: StateFlow<List<ContactoEmergencia>> = repository.contactos
     val smsActivo: StateFlow<Boolean> = repository.smsActivo
     val whatsAppActivo: StateFlow<Boolean> = repository.whatsAppActivo
     val seguimientoActivo: StateFlow<Boolean> = repository.seguimientoActivo
@@ -36,8 +36,10 @@ class SettingsViewModel @Inject constructor(
 
     fun onLlamadaAlAbrirChange(activo: Boolean) = repository.setLlamadaAlAbrir(activo)
     fun onDobleAperturaAutoLlamadaChange(activo: Boolean) = repository.setDobleAperturaAutoLlamada(activo)
-    fun onNumeroSmsChange(numero: String) = repository.setNumeroSms(numero)
-    fun onNombreContactoChange(nombre: String) = repository.setNombreContacto(nombre)
+    /** Devuelve un mensaje de error, o null si se agregó. */
+    fun agregarContacto(nombre: String, numero: String): String? = repository.agregarContacto(nombre, numero)
+    fun eliminarContacto(contacto: ContactoEmergencia) = repository.eliminarContacto(contacto)
+    fun cambiarPin(actual: String, nuevo: String): String? = repository.cambiarPin(actual, nuevo)
     fun onSmsActivoChange(activo: Boolean) = repository.setSmsActivo(activo)
     fun onWhatsAppActivoChange(activo: Boolean) = repository.setWhatsAppActivo(activo)
     fun onSeguimientoActivoChange(activo: Boolean) = repository.setSeguimientoActivo(activo)
@@ -59,14 +61,15 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val (sms, whatsApp) = repository.enviarPrueba()
             _enviandoPrueba.value = false
+            val total = contactos.value.size
             val textoSms = if (smsActivo.value) {
-                if (sms) "SMS enviado" else "SMS no enviado (revisa número y permiso)"
+                if (sms > 0) "SMS enviado a $sms de $total" else "SMS no enviado (revisa contactos y permiso)"
             } else null
             val textoWhatsApp = when (whatsApp) {
                 ResultadoWhatsApp.ENVIO_AUTOMATICO -> "WhatsApp enviado automáticamente"
                 ResultadoWhatsApp.ABIERTO_PARA_ENVIAR -> "WhatsApp abierto: toca Enviar"
                 ResultadoWhatsApp.NO_INSTALADO -> "WhatsApp no está instalado"
-                ResultadoWhatsApp.SIN_NUMERO -> "Falta el número del contacto"
+                ResultadoWhatsApp.SIN_NUMERO -> "Agrega al menos un contacto"
                 ResultadoWhatsApp.ERROR -> "No se pudo abrir WhatsApp"
                 ResultadoWhatsApp.DESACTIVADO -> null
             }

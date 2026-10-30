@@ -1,17 +1,25 @@
-# SilentSOS v1.0
+# SilentSOS v1.1
 
 App Android (Kotlin + Jetpack Compose + Hilt) para pedir ayuda de forma discreta. Al activarse:
 
 1. Obtiene la ubicación GPS (espera 8 s como máximo).
-2. Envía un **SMS** silencioso al contacto de emergencia con el enlace de Google Maps, la precisión, la hora y la batería.
-3. Abre **WhatsApp** con el mismo mensaje ya escrito. Si el *envío automático* está activo, se envía sin tocar la pantalla.
+2. Envía un **SMS** silencioso a cada contacto de emergencia (hasta 3) con el enlace de Google Maps, la precisión, la hora y la batería.
+3. Abre **WhatsApp** con el mismo mensaje ya escrito. Si el *envío automático* está activo, se envía sin tocar la pantalla y a todos los contactos, uno tras otro. Si no está activo, solo se abre el chat del contacto principal.
 4. Inicia el **seguimiento en tiempo real**: un servicio en primer plano envía la ubicación cada 1, 2, 5 o 10 min hasta que se pulsa "Estoy a salvo".
 5. **Llama** al número de emergencia configurado (123 por defecto).
 
 ## Formas de activar la alerta
 - Botón **SOS** en la pantalla principal, con 5 s de cuenta regresiva para poder cancelar.
 - Botón SOS en la pantalla de ingreso, sin escribir el PIN (opcional).
+- **Acceso rápido** (cuenta regresiva de 5 s a pantalla completa, cancelable):
+  - Mantener presionado el ícono de la app → *Enviar SOS*.
+  - Botón **SOS** en los ajustes rápidos (bajar el panel → editar → arrastrar "SOS").
 - **Doble apertura**: abrir la app 2 veces en menos de 10 s envía la alerta sin cuenta regresiva (opcional). Después de una alerta hay 2 min de espera antes de que pueda volver a dispararse.
+
+## Otras funciones
+- **Hasta 3 contactos**: se escriben a mano o se eligen de la agenda (el selector del sistema no requiere el permiso de contactos). No se aceptan números repetidos.
+- **Historial** de alertas y pruebas: origen, hora, SMS y WhatsApp enviados, si hubo llamada y un enlace para ver la ubicación en el mapa. Se guardan las últimas 50.
+- **Cambiar PIN** desde Configuración → Seguridad.
 
 ## Arquitectura
 ```
@@ -21,9 +29,13 @@ ui/ (screens + viewmodel)  →  domain/usecase  →  data/repository/EmergencyRe
                                                    ├─ utils/WhatsAppManager       (intent api.whatsapp.com/send)
                                                    ├─ utils/EmergencyCallManager  (TelecomManager.placeCall)
                                                    ├─ utils/AlertMessageBuilder   (textos de los mensajes)
-                                                   └─ utils/AppOpenTracker        (doble apertura)
+                                                   ├─ utils/AppOpenTracker        (doble apertura)
+                                                   ├─ utils/TextoSms              (texto apto para SMS)
+                                                   └─ utils/PinHasher             (hash del PIN)
+domain/model                     ContactoEmergencia, RegistroAlerta, EstadoAlerta
 service/TrackingService          servicio en primer plano (tipo location) para el seguimiento
 service/WhatsAppAutoSendService  servicio de accesibilidad que pulsa "Enviar" en WhatsApp
+service/SosTileService           botón SOS de los ajustes rápidos
 ```
 Los datos se guardan solo en el teléfono (SharedPreferences). El PIN se guarda como hash SHA-256 con salt.
 
@@ -35,8 +47,9 @@ WhatsApp no tiene una API pública para que una app envíe mensajes desde la cue
 Para activar el envío automático: Configuración → *Activar envío automático* → Apps instaladas → SilentSOS → activar.
 En Android 13 o superior, con la APK instalada fuera de la Play Store, Android lo bloquea como "Ajuste restringido". Para desbloquearlo: Ajustes → Apps → SilentSOS → ⋮ → *Permitir ajustes restringidos*, y luego activarlo.
 
-## Compilar e instalar
+## Compilar, probar e instalar
 ```bash
+./gradlew testDebugUnitTest   # 28 pruebas unitarias
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -47,7 +60,10 @@ APK generada: `app/build/outputs/apk/debug/app-debug.apk`
 2. En "Llamada", cambia el número 123 por un número de prueba o desactiva la llamada.
 3. Usa **Enviar mensaje de prueba**: envía el SMS y el WhatsApp con la ubicación, sin llamar ni iniciar el seguimiento.
 
-## Pruebas realizadas (emulador Android 17, Pixel 8)
+## Pruebas
+**Unitarias** (`app/src/test`, 28 pruebas): limpieza de números y JSON de contactos, historial, conversión de texto para SMS, hash y validación del PIN, y la regla de la doble apertura (ventana, enfriamiento, reloj hacia atrás).
+
+**En emulador (Android 17, Pixel 8):**
 | Caso | Resultado |
 |---|---|
 | Bienvenida → crear cuenta (validación de nombre, PIN y confirmación) → inicio | OK |
@@ -56,6 +72,13 @@ APK generada: `app/build/outputs/apk/debug/app-debug.apk`
 | Seguimiento: SMS "actualización #1" con la nueva posición al minuto | OK |
 | "Estoy a salvo" → servicio detenido + SMS final con la última ubicación | OK |
 | Doble apertura (2 aperturas en < 10 s) → alerta silenciosa | OK |
+| v1.1: migración del contacto único de la v1.0 a la lista | OK |
+| v1.1: agregar contacto (rechaza número vacío o repetido) | OK |
+| v1.1: cambiar PIN (rechaza un PIN actual incorrecto, el nuevo funciona al reingresar) | OK |
+| v1.1: acceso rápido → cuenta regresiva → alerta a 2 contactos (SMS 2/2) | OK |
+| v1.1: acceso rápido → Cancelar → no se envía nada | OK |
+| v1.1: ajuste rápido "SOS" abre la cuenta regresiva | OK |
+| v1.1: historial con el registro y el enlace al mapa | OK |
 | WhatsApp | No probado (el emulador no tiene WhatsApp): probar en un teléfono real |
 
 Los SMS se envían sin tildes ni símbolos especiales a propósito: así caben 160 caracteres por SMS (en vez de 70) y se evita un error de Android 16+ al dividir mensajes Unicode.

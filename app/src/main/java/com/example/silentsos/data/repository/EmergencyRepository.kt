@@ -4,12 +4,16 @@ import android.content.Context
 import android.location.Location
 import com.example.silentsos.data.PreferencesManager
 import com.example.silentsos.di.ApplicationScope
+import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.domain.model.EstadoAlerta
+import com.example.silentsos.domain.model.OrigenAlerta
+import com.example.silentsos.domain.model.RegistroAlerta
 import com.example.silentsos.service.TrackingService
 import com.example.silentsos.utils.AlertMessageBuilder
 import com.example.silentsos.utils.AppOpenTracker
 import com.example.silentsos.utils.EmergencyCallManager
 import com.example.silentsos.utils.LocationHelper
+import com.example.silentsos.utils.PinHasher
 import com.example.silentsos.utils.ResultadoWhatsApp
 import com.example.silentsos.utils.SmsAlertManager
 import com.example.silentsos.utils.WhatsAppManager
@@ -20,8 +24,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.security.MessageDigest
-import java.security.SecureRandom
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -50,11 +52,8 @@ class EmergencyRepository @Inject constructor(
         MutableStateFlow(preferencesManager.isDobleAperturaAutoLlamadaActiva())
     val dobleAperturaAutoLlamada: StateFlow<Boolean> = _dobleAperturaAutoLlamada.asStateFlow()
 
-    private val _numeroSms = MutableStateFlow(preferencesManager.getNumeroSms())
-    val numeroSms: StateFlow<String> = _numeroSms.asStateFlow()
-
-    private val _nombreContacto = MutableStateFlow(preferencesManager.getNombreContacto())
-    val nombreContacto: StateFlow<String> = _nombreContacto.asStateFlow()
+    private val _contactos = MutableStateFlow(preferencesManager.getContactos())
+    val contactos: StateFlow<List<ContactoEmergencia>> = _contactos.asStateFlow()
 
     private val _smsActivo = MutableStateFlow(preferencesManager.isSmsActivo())
     val smsActivo: StateFlow<Boolean> = _smsActivo.asStateFlow()
@@ -77,6 +76,9 @@ class EmergencyRepository @Inject constructor(
     private val _nombreUsuario = MutableStateFlow(preferencesManager.getNombreUsuario())
     val nombreUsuario: StateFlow<String> = _nombreUsuario.asStateFlow()
 
+    private val _historial = MutableStateFlow(preferencesManager.getHistorial())
+    val historial: StateFlow<List<RegistroAlerta>> = _historial.asStateFlow()
+
     private val _estadoAlerta = MutableStateFlow<EstadoAlerta>(EstadoAlerta.Inactiva)
     val estadoAlerta: StateFlow<EstadoAlerta> = _estadoAlerta.asStateFlow()
 
@@ -95,16 +97,27 @@ class EmergencyRepository @Inject constructor(
         _dobleAperturaAutoLlamada.value = activo
     }
 
-    /** Guarda el número del contacto, conservando solo dígitos y el signo +. */
-    fun setNumeroSms(numero: String) {
-        val limpio = limpiarNumero(numero)
-        preferencesManager.setNumeroSms(limpio)
-        _numeroSms.value = limpio
+    /** Devuelve un mensaje de error, o null si el contacto se agregó. */
+    fun agregarContacto(nombre: String, numero: String): String? {
+        val limpio = ContactoEmergencia.limpiarNumero(numero)
+        val actuales = _contactos.value
+        val error = when {
+            actuales.size >= ContactoEmergencia.MAXIMO -> "Máximo ${ContactoEmergencia.MAXIMO} contactos"
+            limpio.count { it.isDigit() } < 7 -> "Número no válido"
+            actuales.any { it.numero == limpio } -> "Ese número ya está en la lista"
+            else -> null
+        }
+        if (error == null) guardarContactos(actuales + ContactoEmergencia(nombre.trim(), limpio))
+        return error
     }
 
-    fun setNombreContacto(nombre: String) {
-        preferencesManager.setNombreContacto(nombre.trim())
-        _nombreContacto.value = nombre.trim()
+    fun eliminarContacto(contacto: ContactoEmergencia) {
+        guardarContactos(_contactos.value - contacto)
+    }
+
+    private fun guardarContactos(contactos: List<ContactoEmergencia>) {
+        preferencesManager.setContactos(contactos)
+        _contactos.value = contactos
     }
 
     fun setSmsActivo(activo: Boolean) {
@@ -133,7 +146,7 @@ class EmergencyRepository @Inject constructor(
     }
 
     fun setNumeroEmergencia(numero: String) {
-        val limpio = limpiarNumero(numero)
+        val limpio = ContactoEmergencia.limpiarNumero(numero)
         preferencesManager.setNumeroEmergencia(limpio)
         _numeroEmergencia.value = limpio
     }
@@ -158,18 +171,40 @@ class EmergencyRepository @Inject constructor(
     fun tieneCuenta(): Boolean = preferencesManager.getPinHash().isNotEmpty()
 
     fun registrarCuenta(nombre: String, pin: String) {
-        val salt = ByteArray(16).also { SecureRandom().nextBytes(it) }.toHex()
-        preferencesManager.setPin(hashPin(pin, salt), salt)
+        guardarPin(pin)
         setNombreUsuario(nombre)
     }
 
     fun validarPin(pin: String): Boolean =
-        tieneCuenta() && hashPin(pin, preferencesManager.getPinSalt()) == preferencesManager.getPinHash()
+        tieneCuenta() && PinHasher.hash(pin, preferencesManager.getPinSalt()) == preferencesManager.getPinHash()
 
-    private fun hashPin(pin: String, salt: String): String =
-        MessageDigest.getInstance("SHA-256").digest("$salt:$pin".toByteArray()).toHex()
+    /** Devuelve un mensaje de error, o null si el PIN se cambió. */
+    fun cambiarPin(actual: String, nuevo: String): String? = when {
+        !validarPin(actual) -> "El PIN actual no es correcto"
+        !PinHasher.esPinValido(nuevo) -> "El PIN nuevo debe tener entre 4 y 6 dígitos"
+        else -> {
+            guardarPin(nuevo)
+            null
+        }
+    }
 
-    private fun ByteArray.toHex(): String = joinToString("") { "%02x".format(it) }
+    private fun guardarPin(pin: String) {
+        val salt = PinHasher.nuevoSalt()
+        preferencesManager.setPin(PinHasher.hash(pin, salt), salt)
+    }
+
+    // ---------- Historial ----------
+
+    private fun registrarEnHistorial(registro: RegistroAlerta) {
+        val nuevo = (listOf(registro) + _historial.value).take(RegistroAlerta.MAXIMO_GUARDADOS)
+        preferencesManager.setHistorial(nuevo)
+        _historial.value = nuevo
+    }
+
+    fun borrarHistorial() {
+        preferencesManager.setHistorial(emptyList())
+        _historial.value = emptyList()
+    }
 
     // ---------- Activación ----------
 
@@ -190,37 +225,32 @@ class EmergencyRepository @Inject constructor(
     /**
      * Dispara la alerta completa:
      * 1. Obtiene la ubicación (máx. ~8 s).
-     * 2. Envía el SMS con la ubicación (silencioso).
+     * 2. Envía el SMS con la ubicación a todos los contactos (silencioso).
      * 3. Inicia el seguimiento en tiempo real.
      * 4. Abre WhatsApp con el mensaje y la ubicación (se envía solo si el
-     *    servicio de accesibilidad está activo).
+     *    servicio de accesibilidad está activo, y en ese caso a todos los contactos).
      * 5. Llama al número de emergencia, dando unos segundos a WhatsApp antes.
      */
-    fun activarEmergencia() {
+    fun activarEmergencia(origen: OrigenAlerta) {
         if (_estadoAlerta.value == EstadoAlerta.Enviando) return
         _estadoAlerta.value = EstadoAlerta.Enviando
         appOpenTracker.iniciarEnfriamiento()
 
         scope.launch {
             val ubicacion = locationHelper.obtenerUbicacionActual()
-            val numero = _numeroSms.value
+            val contactos = _contactos.value
             val nombre = _nombreUsuario.value
             val seguir = _seguimientoActivo.value && locationHelper.tienePermiso()
             val intervalo = if (seguir) _intervaloSeguimientoMin.value else null
 
-            val sms = _smsActivo.value &&
-                smsAlertManager.enviarAlerta(numero, mensajes.alerta(nombre, ubicacion, intervalo, paraWhatsApp = false))
+            val sms = enviarSmsATodos(contactos, mensajes.alerta(nombre, ubicacion, intervalo, paraWhatsApp = false))
 
             // El servicio en primer plano debe arrancar mientras la app sigue visible
             // (Android 12+), es decir, antes de abrir WhatsApp.
             val seguimiento = seguir && runCatching { TrackingService.iniciar(context) }.isSuccess
 
-            val whatsApp = if (_whatsAppActivo.value) {
-                appOpenTracker.omitirSiguienteApertura()
-                whatsAppManager.enviar(numero, mensajes.alerta(nombre, ubicacion, intervalo, paraWhatsApp = true))
-            } else {
-                ResultadoWhatsApp.DESACTIVADO
-            }
+            val (whatsApp, whatsAppEnviados) =
+                enviarWhatsAppATodos(contactos, mensajes.alerta(nombre, ubicacion, intervalo, paraWhatsApp = true))
 
             var llamada = false
             if (_llamarEmergencia.value) {
@@ -237,31 +267,91 @@ class EmergencyRepository @Inject constructor(
             _estadoAlerta.value = EstadoAlerta.Enviada(
                 hora = System.currentTimeMillis(),
                 ubicacionObtenida = ubicacion != null,
-                smsEnviado = sms,
+                contactos = contactos.size,
+                smsEnviados = sms,
                 whatsApp = whatsApp,
                 seguimientoIniciado = seguimiento,
                 llamadaIniciada = llamada
+            )
+            registrarEnHistorial(
+                RegistroAlerta(
+                    hora = System.currentTimeMillis(),
+                    origen = origen,
+                    latitud = ubicacion?.latitude,
+                    longitud = ubicacion?.longitude,
+                    smsEnviados = sms,
+                    whatsAppEnviados = whatsAppEnviados,
+                    contactos = contactos.size,
+                    llamada = llamada
+                )
             )
         }
     }
 
     /**
      * Envía un mensaje de prueba por los canales activos, sin llamar ni
-     * iniciar seguimiento. Devuelve (sms enviado, resultado de WhatsApp).
+     * iniciar seguimiento. Devuelve (SMS enviados, resultado de WhatsApp).
      */
-    suspend fun enviarPrueba(): Pair<Boolean, ResultadoWhatsApp> {
+    suspend fun enviarPrueba(): Pair<Int, ResultadoWhatsApp> {
         val ubicacion = locationHelper.obtenerUbicacionActual()
-        val numero = _numeroSms.value
+        val contactos = _contactos.value
         val nombre = _nombreUsuario.value
-        val sms = _smsActivo.value &&
-            smsAlertManager.enviarAlerta(numero, mensajes.prueba(nombre, ubicacion, paraWhatsApp = false))
-        val whatsApp = if (_whatsAppActivo.value) {
-            appOpenTracker.omitirSiguienteApertura()
-            whatsAppManager.enviar(numero, mensajes.prueba(nombre, ubicacion, paraWhatsApp = true))
-        } else {
-            ResultadoWhatsApp.DESACTIVADO
-        }
+        val sms = enviarSmsATodos(contactos, mensajes.prueba(nombre, ubicacion, paraWhatsApp = false))
+        val (whatsApp, whatsAppEnviados) =
+            enviarWhatsAppATodos(contactos, mensajes.prueba(nombre, ubicacion, paraWhatsApp = true))
+        registrarEnHistorial(
+            RegistroAlerta(
+                hora = System.currentTimeMillis(),
+                origen = OrigenAlerta.PRUEBA,
+                latitud = ubicacion?.latitude,
+                longitud = ubicacion?.longitude,
+                smsEnviados = sms,
+                whatsAppEnviados = whatsAppEnviados,
+                contactos = contactos.size,
+                llamada = false
+            )
+        )
         return sms to whatsApp
+    }
+
+    /** Devuelve cuántos SMS se entregaron al sistema para envío. */
+    private fun enviarSmsATodos(contactos: List<ContactoEmergencia>, mensaje: String): Int {
+        if (!_smsActivo.value) return 0
+        return contactos.count { smsAlertManager.enviarAlerta(it.numero, mensaje) }
+    }
+
+    /**
+     * Con envío automático, abre el chat de cada contacto por turnos (el servicio
+     * de accesibilidad pulsa "Enviar" y vuelve al inicio antes del siguiente).
+     * Sin envío automático solo se abre el del primer contacto: abrir varios
+     * chats seguidos esperando un toque en cada uno no es práctico en una emergencia.
+     *
+     * Devuelve el resultado del primer intento y cuántos chats se enviaron o abrieron.
+     */
+    private suspend fun enviarWhatsAppATodos(
+        contactos: List<ContactoEmergencia>,
+        mensaje: String,
+        soloAutomatico: Boolean = false
+    ): Pair<ResultadoWhatsApp, Int> {
+        if (!_whatsAppActivo.value) return ResultadoWhatsApp.DESACTIVADO to 0
+        if (contactos.isEmpty()) return ResultadoWhatsApp.SIN_NUMERO to 0
+
+        val automatico = whatsAppManager.autoEnvioDisponible()
+        if (soloAutomatico && !automatico) return ResultadoWhatsApp.DESACTIVADO to 0
+        val destinatarios = if (automatico) contactos else contactos.take(1)
+
+        var primero: ResultadoWhatsApp? = null
+        var enviados = 0
+        destinatarios.forEachIndexed { i, contacto ->
+            if (i > 0) delay(ESPERA_ENTRE_WHATSAPP_MS)
+            appOpenTracker.omitirSiguienteApertura()
+            val resultado = whatsAppManager.enviar(contacto.numero, mensaje)
+            if (primero == null) primero = resultado
+            if (resultado == ResultadoWhatsApp.ENVIO_AUTOMATICO || resultado == ResultadoWhatsApp.ABIERTO_PARA_ENVIAR) {
+                enviados++
+            }
+        }
+        return (primero ?: ResultadoWhatsApp.ERROR) to enviados
     }
 
     // ---------- Seguimiento en tiempo real (lo usa TrackingService) ----------
@@ -284,31 +374,26 @@ class EmergencyRepository @Inject constructor(
      */
     suspend fun enviarActualizacionDeUbicacion(numeroEnvio: Int): Location? {
         val ubicacion = locationHelper.obtenerUbicacionActual()
-        val numero = _numeroSms.value
-        if (_smsActivo.value) {
-            smsAlertManager.enviarAlerta(numero, mensajes.actualizacion(numeroEnvio, ubicacion, paraWhatsApp = false))
-        }
-        if (_whatsAppActivo.value && whatsAppManager.autoEnvioDisponible()) {
-            whatsAppManager.enviar(numero, mensajes.actualizacion(numeroEnvio, ubicacion, paraWhatsApp = true))
-        }
+        val contactos = _contactos.value
+        enviarSmsATodos(contactos, mensajes.actualizacion(numeroEnvio, ubicacion, paraWhatsApp = false))
+        enviarWhatsAppATodos(
+            contactos, mensajes.actualizacion(numeroEnvio, ubicacion, paraWhatsApp = true), soloAutomatico = true
+        )
         return ubicacion
     }
 
     suspend fun enviarFinDeSeguimiento() {
         val ubicacion = locationHelper.obtenerUbicacionActual(timeoutMs = 4_000L)
-        if (_smsActivo.value) {
-            smsAlertManager.enviarAlerta(_numeroSms.value, mensajes.finSeguimiento(ubicacion))
-        }
+        enviarSmsATodos(_contactos.value, mensajes.finSeguimiento(ubicacion))
         _estadoAlerta.value = EstadoAlerta.Inactiva
     }
-
-    private fun limpiarNumero(numero: String): String =
-        numero.filterIndexed { i, c -> c.isDigit() || (c == '+' && i == 0) }
 
     companion object {
         /** Tiempo para que el servicio de accesibilidad pulse "Enviar" antes de la llamada. */
         private const val ESPERA_LLAMADA_AUTO_MS = 6_000L
         /** Tiempo para que el usuario toque "Enviar" en WhatsApp antes de la llamada. */
         private const val ESPERA_LLAMADA_MANUAL_MS = 15_000L
+        /** Entre un chat de WhatsApp y el siguiente (abrir, enviar y volver al inicio). */
+        private const val ESPERA_ENTRE_WHATSAPP_MS = 7_000L
     }
 }

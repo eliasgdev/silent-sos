@@ -1,5 +1,6 @@
 package com.example.silentsos
 
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.widget.Toast
@@ -10,10 +11,13 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.example.silentsos.navigation.Rutas
 import com.example.silentsos.navigation.SilentSOSNavGraph
+import com.example.silentsos.ui.screens.CuentaRegresivaSos
 import com.example.silentsos.ui.screens.permisosRequeridos
 import com.example.silentsos.ui.theme.SilentSOSTheme
 import com.example.silentsos.ui.viewmodel.MainViewModel
@@ -44,7 +48,10 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         omitirAperturaPorRotacion = savedInstanceState?.getBoolean(KEY_CAMBIO_CONFIG) == true
-        if (savedInstanceState == null) pedirPermisosSiFaltan()
+        if (savedInstanceState == null) {
+            pedirPermisosSiFaltan()
+            procesarAccesoRapido(intent)
+        }
 
         val rutaInicio = if (viewModel.haVistoBienvenida) Rutas.LOGIN else Rutas.BIENVENIDA
 
@@ -55,8 +62,30 @@ class MainActivity : ComponentActivity() {
                     color = MaterialTheme.colorScheme.background
                 ) {
                     SilentSOSNavGraph(rutaInicio = rutaInicio)
+
+                    val sosRapido by viewModel.sosRapidoPendiente.collectAsState()
+                    if (sosRapido) {
+                        CuentaRegresivaSos(
+                            onConfirmar = viewModel::confirmarSosRapido,
+                            onCancelar = viewModel::cancelarSosRapido
+                        )
+                    }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        procesarAccesoRapido(intent)
+    }
+
+    /** Atajo del ícono o ajuste rápido: muestra la cuenta regresiva del SOS. */
+    private fun procesarAccesoRapido(intent: Intent?) {
+        if (intent?.action == ACCION_SOS_RAPIDO) {
+            // Un acceso rápido no es una "apertura" para la regla de doble apertura
+            viewModel.omitirSiguienteApertura()
+            viewModel.solicitarSosRapido()
         }
     }
 
@@ -87,5 +116,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val KEY_CAMBIO_CONFIG = "cambio_config"
+        const val ACCION_SOS_RAPIDO = "com.example.silentsos.SOS_RAPIDO"
     }
 }

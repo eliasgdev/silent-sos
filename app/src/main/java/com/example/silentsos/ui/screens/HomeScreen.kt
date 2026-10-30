@@ -6,6 +6,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
@@ -21,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.domain.model.EstadoAlerta
 import com.example.silentsos.ui.theme.OkGreen
 import com.example.silentsos.ui.theme.SosRed
@@ -38,11 +40,11 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     onConfiguracionClick: () -> Unit,
+    onHistorialClick: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val nombreUsuario by viewModel.nombreUsuario.collectAsState()
-    val nombreContacto by viewModel.nombreContacto.collectAsState()
-    val numeroContacto by viewModel.numeroContacto.collectAsState()
+    val contactos by viewModel.contactos.collectAsState()
     val estado by viewModel.estadoAlerta.collectAsState()
     val seguimiento by viewModel.seguimientoEnCurso.collectAsState()
     val intervalo by viewModel.intervaloSeguimientoMin.collectAsState()
@@ -52,6 +54,9 @@ fun HomeScreen(
             TopAppBar(
                 title = { Text("SilentSOS", fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = onHistorialClick) {
+                        Icon(Icons.AutoMirrored.Filled.List, contentDescription = "Historial")
+                    }
                     IconButton(onClick = onConfiguracionClick) {
                         Icon(Icons.Default.Settings, contentDescription = "Configuración")
                     }
@@ -72,14 +77,14 @@ fun HomeScreen(
                 Text("Hola, $nombreUsuario", style = MaterialTheme.typography.titleLarge)
             }
 
-            if (numeroContacto.isBlank()) {
+            if (contactos.isEmpty()) {
                 AvisoCard(
                     texto = "Aún no tienes contacto de emergencia. Configúralo para que la alerta llegue a alguien.",
                     accion = "Configurar",
                     onAccion = onConfiguracionClick
                 )
             } else {
-                ContactoCard(nombre = nombreContacto, numero = numeroContacto)
+                ContactosCard(contactos)
             }
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -119,15 +124,17 @@ fun HomeScreen(
 }
 
 @Composable
-private fun ContactoCard(nombre: String, numero: String) {
+private fun ContactosCard(contactos: List<ContactoEmergencia>) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Default.Person, contentDescription = null)
             Spacer(modifier = Modifier.width(12.dp))
             Column {
-                Text("Contacto de emergencia", style = MaterialTheme.typography.labelLarge)
-                Text(nombre.ifBlank { numero }, style = MaterialTheme.typography.titleLarge)
-                if (nombre.isNotBlank()) Text(numero, style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    if (contactos.size == 1) "Contacto de emergencia" else "${contactos.size} contactos de emergencia",
+                    style = MaterialTheme.typography.labelLarge
+                )
+                Text(contactos.joinToString(", ") { it.etiqueta }, style = MaterialTheme.typography.titleLarge)
             }
         }
     }
@@ -163,7 +170,7 @@ private fun EstadoCard(estado: EstadoAlerta) {
                 "Alerta enviada a las $hora",
                 listOfNotNull(
                     if (estado.ubicacionObtenida) "Ubicación incluida" else "Sin ubicación (GPS no disponible)",
-                    if (estado.smsEnviado) "SMS enviado" else "SMS no enviado",
+                    if (estado.smsEnviados > 0) "SMS a ${estado.smsEnviados} de ${estado.contactos}" else "SMS no enviado",
                     when (estado.whatsApp) {
                         ResultadoWhatsApp.ENVIO_AUTOMATICO -> "WhatsApp enviado"
                         ResultadoWhatsApp.ABIERTO_PARA_ENVIAR -> "WhatsApp abierto para enviar"

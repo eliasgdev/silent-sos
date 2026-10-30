@@ -16,7 +16,11 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -31,6 +35,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.silentsos.domain.model.ContactoEmergencia
 import com.example.silentsos.ui.theme.OkGreen
 import com.example.silentsos.ui.theme.SosRed
 import com.example.silentsos.ui.viewmodel.SettingsViewModel
@@ -70,8 +75,9 @@ fun SettingsScreen(
     val enviandoPrueba by viewModel.enviandoPrueba.collectAsState()
 
     // Estado local de los campos de texto para que escribir no tenga saltos de cursor
-    var nombreContacto by remember { mutableStateOf(viewModel.nombreContacto.value) }
-    var numeroContacto by remember { mutableStateOf(viewModel.numeroSms.value) }
+    val contactos by viewModel.contactos.collectAsState()
+    var dialogoContacto by remember { mutableStateOf<ContactoEmergencia?>(null) }
+    var dialogoPin by remember { mutableStateOf(false) }
     var numeroEmergencia by remember { mutableStateOf(viewModel.numeroEmergencia.value) }
     var nombreUsuario by remember { mutableStateOf(viewModel.nombreUsuario.value) }
 
@@ -98,6 +104,22 @@ fun SettingsScreen(
         context.startActivity(intent)
     }
 
+    dialogoContacto?.let { inicial ->
+        DialogoContacto(
+            inicial = inicial,
+            onAntesDeElegir = viewModel::antesDeSalirDeLaApp,
+            onGuardar = { nombre, numero -> viewModel.agregarContacto(nombre, numero) },
+            onCerrar = { dialogoContacto = null }
+        )
+    }
+    if (dialogoPin) {
+        DialogoCambiarPin(
+            onCambiar = viewModel::cambiarPin,
+            onCerrar = { dialogoPin = false },
+            onListo = { Toast.makeText(context, "PIN actualizado", Toast.LENGTH_SHORT).show() }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -119,36 +141,44 @@ fun SettingsScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
 
-            Seccion("Contacto de emergencia") {
-                OutlinedTextField(
-                    value = nombreContacto,
-                    onValueChange = {
-                        nombreContacto = it
-                        viewModel.onNombreContactoChange(it)
-                    },
-                    label = { Text("Nombre") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+            Seccion("Contactos de emergencia") {
+                Text(
+                    "Hasta ${ContactoEmergencia.MAXIMO}. Todos reciben el SMS; por WhatsApp, todos si el envío " +
+                        "automático está activo, si no solo el primero.",
+                    style = MaterialTheme.typography.labelLarge
                 )
-                OutlinedTextField(
-                    value = numeroContacto,
-                    onValueChange = {
-                        numeroContacto = it
-                        viewModel.onNumeroSmsChange(it)
-                    },
-                    label = { Text("Número con indicativo") },
-                    placeholder = { Text("+57 300 123 4567") },
-                    supportingText = {
-                        if (numeroContacto.isNotBlank() && !numeroContacto.trim().startsWith("+")) {
-                            Text("Incluye el indicativo del país (ej. +57) para que funcione en WhatsApp")
-                        } else {
-                            Text("Recibe el SMS y el WhatsApp con tu ubicación")
+                contactos.forEachIndexed { i, contacto ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Person, contentDescription = null)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                contacto.etiqueta + if (i == 0) " · principal" else "",
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = FontWeight.Medium
+                            )
+                            if (contacto.nombre.isNotBlank()) {
+                                Text(contacto.numero, style = MaterialTheme.typography.labelLarge)
+                            }
                         }
-                    },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                        IconButton(onClick = { viewModel.eliminarContacto(contacto) }) {
+                            Icon(Icons.Default.Delete, contentDescription = "Eliminar ${contacto.etiqueta}")
+                        }
+                    }
+                }
+                if (contactos.isEmpty()) {
+                    EstadoLinea(ok = false, texto = "Sin contactos: la alerta no llegará a nadie")
+                }
+                if (contactos.size < ContactoEmergencia.MAXIMO) {
+                    OutlinedButton(
+                        onClick = { dialogoContacto = ContactoEmergencia("", "") },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Agregar contacto")
+                    }
+                }
             }
 
             Seccion("Canales de aviso") {
@@ -267,6 +297,14 @@ fun SettingsScreen(
                 )
             }
 
+            Seccion("Seguridad") {
+                OutlinedButton(onClick = { dialogoPin = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Lock, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Cambiar PIN")
+                }
+            }
+
             Seccion("Permisos") {
                 val nombres = mapOf(
                     Manifest.permission.SEND_SMS to "Enviar SMS",
@@ -348,7 +386,7 @@ private fun OpcionSwitch(
 }
 
 @Composable
-private fun EstadoLinea(ok: Boolean, texto: String) {
+internal fun EstadoLinea(ok: Boolean, texto: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
             imageVector = if (ok) Icons.Default.CheckCircle else Icons.Default.Warning,

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Mantener presionado el ícono de la app → "Enviar SOS" -->
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_atajo_sos"
+        android:shortcutId="sos"
+        android:shortcutLongLabel="@string/atajo_sos_largo"
+        android:shortcutShortLabel="@string/atajo_sos">
+        <intent
+            android:action="com.example.silentsos.SOS_RAPIDO"
+            android:targetClass="com.example.silentsos.MainActivity"
+            android:targetPackage="com.example.silentsos" />
+    </shortcut>
+</shortcuts>

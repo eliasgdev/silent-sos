@@ -13,6 +13,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.silentsos.ui.theme.SosRed
 import com.example.silentsos.ui.theme.SosRedDark
 import kotlinx.coroutines.delay
@@ -75,6 +77,53 @@ fun SosButton(
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(onClick = { restante = null }) {
                 Text("Cancelar")
+            }
+        }
+    }
+}
+
+/**
+ * Cuenta regresiva a pantalla completa para el acceso rápido (atajo del ícono
+ * o ajuste rápido). Arranca sola; si nadie cancela, se envía la alerta.
+ */
+@Composable
+fun CuentaRegresivaSos(onConfirmar: () -> Unit, onCancelar: () -> Unit) {
+    var restante by remember { mutableIntStateOf(CUENTA_REGRESIVA_S) }
+
+    LaunchedEffect(Unit) {
+        while (restante > 0) {
+            delay(1_000)
+            restante--
+        }
+        onConfirmar()
+    }
+
+    Dialog(
+        onDismissRequest = onCancelar,
+        properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)
+    ) {
+        Surface(color = SosRedDark, contentColor = Color.White, modifier = Modifier.fillMaxSize()) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(24.dp, Alignment.CenterVertically),
+                modifier = Modifier.padding(32.dp)
+            ) {
+                Text("Enviando alerta en", style = MaterialTheme.typography.titleLarge)
+                Text("$restante", fontSize = 120.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    "Tus contactos recibirán tu ubicación.",
+                    style = MaterialTheme.typography.bodyLarge,
+                    textAlign = TextAlign.Center
+                )
+                Button(
+                    onClick = onCancelar,
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = SosRedDark),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                ) {
+                    Text("Cancelar", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                }
             }
         }
     }

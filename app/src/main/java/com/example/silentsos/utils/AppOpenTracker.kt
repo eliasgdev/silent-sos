@@ -36,11 +36,11 @@ class AppOpenTracker @Inject constructor(
         }
 
         val ahora = System.currentTimeMillis()
-        // Tras una alerta no se vuelve a disparar otra durante un rato
-        if (ahora < prefs.getLong(KEY_ENFRIAMIENTO_HASTA, 0L)) return false
-
-        val ultima = prefs.getLong(KEY_ULTIMA_APERTURA, 0L)
-        val esDoble = ultima > 0L && ahora - ultima in 1..VENTANA_MS
+        val esDoble = esDobleApertura(
+            ultimaApertura = prefs.getLong(KEY_ULTIMA_APERTURA, 0L),
+            ahora = ahora,
+            enfriamientoHasta = prefs.getLong(KEY_ENFRIAMIENTO_HASTA, 0L)
+        )
         if (esDoble) {
             reiniciarContador()
         } else {
@@ -70,6 +70,16 @@ class AppOpenTracker @Inject constructor(
         private const val PREFS_NAME = "silent_sos_open_tracker"
         private const val KEY_ULTIMA_APERTURA = "ultima_apertura"
         private const val KEY_ENFRIAMIENTO_HASTA = "enfriamiento_hasta"
+        /**
+         * Regla pura de la doble apertura (sin SharedPreferences, para poder probarla):
+         * hay una apertura anterior a menos de [VENTANA_MS] y no estamos en enfriamiento.
+         */
+        fun esDobleApertura(ultimaApertura: Long, ahora: Long, enfriamientoHasta: Long): Boolean {
+            // Tras una alerta no se vuelve a disparar otra durante un rato
+            if (ahora < enfriamientoHasta) return false
+            return ultimaApertura > 0L && ahora - ultimaApertura in 1..VENTANA_MS
+        }
+
         /** Dos aperturas separadas por menos de este tiempo disparan la alerta. */
         const val VENTANA_MS = 10_000L
         private const val ENFRIAMIENTO_MS = 2 * 60_000L

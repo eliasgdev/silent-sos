@@ -3,6 +3,7 @@ package com.example.silentsos.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import com.example.silentsos.data.repository.EmergencyRepository
 import com.example.silentsos.domain.usecase.LlamarEmergenciaUseCase
+import com.example.silentsos.utils.PinHasher
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +47,7 @@ class LoginViewModel @Inject constructor(
     fun registrar(nombre: String, pin: String, confirmacion: String): Boolean {
         val error = when {
             nombre.isBlank() -> "Escribe tu nombre (se incluye en los mensajes de alerta)"
-            pin.length !in 4..6 || !pin.all { it.isDigit() } -> "El PIN debe tener entre 4 y 6 dígitos"
+            !PinHasher.esPinValido(pin) -> "El PIN debe tener entre 4 y 6 dígitos"
             pin != confirmacion -> "Los PIN no coinciden"
             else -> null
         }

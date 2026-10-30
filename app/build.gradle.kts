@@ -13,8 +13,8 @@ android {
         applicationId = "com.example.silentsos"
         minSdk = 24
         targetSdk = 34
-        versionCode = 2
-        versionName = "1.0"
+        versionCode = 3
+        versionName = "1.1"
     }
 
     buildFeatures {
@@ -61,4 +61,8 @@ dependencies {
     // Ubicación (GPS) para la alerta y el seguimiento en tiempo real
     implementation("com.google.android.gms:play-services-location:21.3.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.8.1")
+
+    // Pruebas unitarias (JVM). org.json real: el de android.jar es solo un stub en tests locales.
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }

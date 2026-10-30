@@ -8,7 +8,6 @@ import android.telephony.SmsManager
 import android.util.Log
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
-import java.text.Normalizer
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -49,7 +48,7 @@ class SmsAlertManager @Inject constructor(
             }
             if (smsManager == null) return false
 
-            val texto = aTextoGsm(mensaje)
+            val texto = TextoSms.aGsm(mensaje)
             // divideMessage puede lanzar SecurityException en Android 16+ (consulta datos
             // de la SIM sin permiso); en ese caso se parte a mano.
             val partes = try {
@@ -64,15 +63,6 @@ class SmsAlertManager @Inject constructor(
             false
         }
     }
-
-    /**
-     * Quita tildes y símbolos fuera del alfabeto GSM: así cada SMS admite 160
-     * caracteres en vez de 70 y se evita la ruta Unicode de divideMessage.
-     */
-    private fun aTextoGsm(mensaje: String): String =
-        Normalizer.normalize(mensaje.replace("±", "+/-").replace("·", "-"), Normalizer.Form.NFD)
-            .replace(Regex("\\p{Mn}+"), "")
-            .filter { it == '\n' || it.code in 32..126 }
 
     companion object {
         private const val TAG = "SmsAlertManager"

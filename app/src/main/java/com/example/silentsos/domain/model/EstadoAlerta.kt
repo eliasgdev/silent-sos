@@ -12,7 +12,8 @@ sealed interface EstadoAlerta {
     data class Enviada(
         val hora: Long,
         val ubicacionObtenida: Boolean,
-        val smsEnviado: Boolean,
+        val contactos: Int,
+        val smsEnviados: Int,
         val whatsApp: ResultadoWhatsApp,
         val seguimientoIniciado: Boolean,
         val llamadaIniciada: Boolean

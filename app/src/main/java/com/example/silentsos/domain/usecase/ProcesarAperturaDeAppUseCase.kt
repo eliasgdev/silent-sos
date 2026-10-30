@@ -1,6 +1,7 @@
 package com.example.silentsos.domain.usecase
 
 import com.example.silentsos.data.repository.EmergencyRepository
+import com.example.silentsos.domain.model.OrigenAlerta
 import javax.inject.Inject
 
 /**
@@ -14,7 +15,7 @@ class ProcesarAperturaDeAppUseCase @Inject constructor(
     /** Devuelve true si se disparó la alerta. */
     operator fun invoke(): Boolean {
         val debeAlertar = repository.procesarAperturaDeApp()
-        if (debeAlertar) repository.activarEmergencia()
+        if (debeAlertar) repository.activarEmergencia(OrigenAlerta.DOBLE_APERTURA)
         return debeAlertar
     }
 }

@@ -5,6 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.example.silentsos.ui.screens.HistorialScreen
 import com.example.silentsos.ui.screens.HomeScreen
 import com.example.silentsos.ui.screens.LoginScreen
 import com.example.silentsos.ui.screens.SettingsScreen
@@ -15,6 +16,7 @@ object Rutas {
     const val LOGIN = "login"
     const val INICIO = "inicio"
     const val CONFIGURACION = "configuracion"
+    const val HISTORIAL = "historial"
 }
 
 @Composable
@@ -49,12 +51,17 @@ fun SilentSOSNavGraph(
 
         composable(Rutas.INICIO) {
             HomeScreen(
-                onConfiguracionClick = { navController.navigate(Rutas.CONFIGURACION) }
+                onConfiguracionClick = { navController.navigate(Rutas.CONFIGURACION) },
+                onHistorialClick = { navController.navigate(Rutas.HISTORIAL) }
             )
         }
 
         composable(Rutas.CONFIGURACION) {
             SettingsScreen(onVolver = { navController.popBackStack() })
+        }
+
+        composable(Rutas.HISTORIAL) {
+            HistorialScreen(onVolver = { navController.popBackStack() })
         }
     }
 }
