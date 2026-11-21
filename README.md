@@ -111,3 +111,9 @@ Los SMS se envían sin tildes ni símbolos especiales a propósito: así caben 1
 - La ubicación en tiempo real de WhatsApp sigue activa las 8 h aunque se pulse "Estoy a salvo"; se detiene desde el chat de WhatsApp.
 - El SMS tiene el costo normal del plan del usuario. Si el operador no lo entrega (saldo, filtros antispam, envío al mismo número), la app lo muestra pero no puede evitarlo.
 - Si se **fuerza la detención** de SilentSOS (Ajustes → Apps → Forzar detención), Android apaga su servicio de accesibilidad y hay que volver a activarlo. La pantalla principal avisa cuando pasa.
+
+---
+
+<a href="https://avirexis.com/?utm_source=github&utm_medium=readme&utm_campaign=silent-sos"><picture><source media="(prefers-color-scheme: dark)" srcset="https://avirexis.com/avx-logo-nav-white.png"><img src="https://avirexis.com/avx-logo-nav.png" alt="Avirexis" height="22"></picture></a>
+
+Hecho por [Avirexis](https://avirexis.com/?utm_source=github&utm_medium=readme&utm_campaign=silent-sos), software de gestión para negocios hecho en Colombia.
